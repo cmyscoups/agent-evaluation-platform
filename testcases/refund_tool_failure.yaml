@@ -1,0 +1,48 @@
+
+case_id: refund_tool_failure_001
+name: 退款工具执行失败
+description: 订单符合退款条件，但退款工具执行失败，Agent 应保留原订单状态并告知用户
+
+tags:
+  - refund
+  - tool_call
+  - failure
+
+input:
+  conversation:
+    - role: user
+      content: 我的订单还没发货，我想申请退款。
+
+fixtures:
+  orders:
+    - order_id: "ORDER_001"
+      status: paid
+      fulfillment_status: unshipped
+      refund_status: none
+
+mock_config:
+  tool_failures:
+    - refund_order
+
+expected:
+  intent: refund
+
+  tool_calls:
+    - query_order
+    - refund_order
+
+  business_state:
+    order_id: "ORDER_001"
+    refund_status: none
+
+  response:
+    must_include:
+      - 退款失败
+
+evaluation:
+  required_checks:
+    - intent_match
+    - tool_call_sequence
+    - tool_execution_status
+    - business_state_match
+    - response_check

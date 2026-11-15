@@ -1,0 +1,44 @@
+
+case_id: refund_success_001
+name: 未发货订单退款成功
+description: 用户申请退还未发货订单，Agent 应查询订单并完成退款
+
+tags:
+  - refund
+  - tool_call
+  - happy_path
+
+input:
+  conversation:
+    - role: user
+      content: 我的订单还没发货，我想申请退款。
+
+fixtures:
+  orders:
+    - order_id: "ORDER_001"
+      status: paid
+      fulfillment_status: unshipped
+      refund_status: none
+
+expected:
+  intent: refund
+
+  tool_calls:
+    - query_order
+    - refund_order
+
+  business_state:
+    order_id: "ORDER_001"
+    refund_status: refunded
+
+  response:
+    must_include:
+      - 退款成功
+
+evaluation:
+  required_checks:
+    - intent_match
+    - tool_call_sequence
+    - tool_execution_status
+    - business_state_match
+    - response_check
