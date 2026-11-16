@@ -89,3 +89,82 @@ def test_field_frozen():
     # 不允许修改集合内容
     with pytest.raises(AttributeError):
         report.results.append(create_metric(EvaluationStatus.FAIL))
+        
+def test_to_dict_returns_expected_structure():
+    report = EvaluationReport(
+        testcase_id="refund_success",
+        results=(
+            MetricResult(
+                name="intent",
+                status=EvaluationStatus.PASS,
+                reason="意图符合预期",
+                expected="refund",
+                actual="refund",
+            ),
+            MetricResult(
+                name="business_state",
+                status=EvaluationStatus.PASS,
+                reason="订单退款成功",
+                expected="refunded",
+                actual="refunded",
+            ),
+        ),
+    )
+
+    result = report.to_dict()
+
+    assert result == {
+        "testcase_id": "refund_success",
+        "status": "PASS",
+        "results": [
+            {
+                "name": "intent",
+                "status": "PASS",
+                "reason": "意图符合预期",
+                "expected": "refund",
+                "actual": "refund",
+            },
+            {
+                "name": "business_state",
+                "status": "PASS",
+                "reason": "订单退款成功",
+                "expected": "refunded",
+                "actual": "refunded",
+            },
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    ("results", "expected_status"),
+    [
+        ((), "BLOCKED"),
+        (
+            (
+                MetricResult(
+                    name="intent",
+                    status=EvaluationStatus.FAIL,
+                    reason="意图不符合预期",
+                ),
+            ),
+            "FAIL",
+        ),
+        (
+            (
+                MetricResult(
+                    name="intent",
+                    status=EvaluationStatus.BLOCKED,
+                    reason="缺少评测数据",
+                ),
+            ),
+            "BLOCKED",
+        ),
+    ],
+)
+def test_to_dict_returns_correct_overall_status(results, expected_status):
+    report = EvaluationReport(
+        testcase_id="refund_test",
+        results=results,
+    )
+
+    assert report.to_dict()["status"] == expected_status

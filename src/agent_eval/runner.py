@@ -1,6 +1,9 @@
+from pathlib import Path
+
 from agent_eval.adapters.base import AgentAdapter
 from agent_eval.collectors.trace_collector import TraceCollector
 from agent_eval.evaluators.evaluator import Evaluator
+from agent_eval.reporting.json_report_writer import JsonReportWriter
 
 
 class EvaluationRunner:
@@ -10,13 +13,15 @@ class EvaluationRunner:
         agent_adapter: AgentAdapter,
         evaluator: Evaluator,
         collector: TraceCollector,
+        report_writer: JsonReportWriter | None = None,
     ):
         self.agent_adapter = agent_adapter
         self.evaluator = evaluator
         self.collector = collector
+        self.report_writer = report_writer
 
 
-    def run(self, test_case):
+    def run(self, test_case, output_path: str | Path | None = None):
         self.collector.start_trace(test_case.case_id)
 
         try:
@@ -36,5 +41,13 @@ class EvaluationRunner:
             agent_result,
             trace,
         )
+
+        if output_path is not None:
+            if self.report_writer is None:
+                raise ValueError(
+                    "output_path was provided, but report_writer is not configured"
+                )
+
+            self.report_writer.write(report, output_path)
 
         return report

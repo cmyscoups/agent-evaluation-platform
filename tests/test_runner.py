@@ -6,7 +6,14 @@ import pytest
 from agent_eval.runner import EvaluationRunner
 from agent_eval.collectors.trace_collector import TraceCollector
 from agent_eval.models.test_case import TestCase
+import json
 
+from agent_eval.models.evaluation_report import (
+    EvaluationReport,
+    MetricResult,
+    EvaluationStatus,
+)
+from agent_eval.reporting.json_report_writer import JsonReportWriter
 
 def make_testcase():
     return TestCase(
@@ -27,6 +34,7 @@ def test_runner_returns_evaluation_report():
     collector = TraceCollector()
     agent_adapter = Mock()
     evaluator = Mock()
+    report_writer = Mock()
 
     agent_result = object()
     expected_report = object()
@@ -38,6 +46,7 @@ def test_runner_returns_evaluation_report():
         agent_adapter=agent_adapter,
         evaluator=evaluator,
         collector=collector,
+        report_writer=report_writer,
     )
 
     report = runner.run(testcase)
@@ -54,6 +63,7 @@ def test_runner_returns_evaluation_report():
         agent_result,
         trace,
     )
+    report_writer.write.assert_not_called()
 
 
 def test_runner_marks_trace_failed_when_agent_raises():
@@ -138,3 +148,125 @@ def test_runner_passes_same_trace_to_evaluator():
     actual_trace = evaluator.evaluate.call_args.args[2]
 
     assert actual_trace is trace
+
+
+def test_runner_writes_report_when_output_path_provided(tmp_path):
+    testcase = make_testcase()
+
+    collector = TraceCollector()
+    agent_adapter = Mock()
+    evaluator = Mock()
+    report_writer = Mock()
+
+    agent_result = object()
+    expected_report = object()
+
+    agent_adapter.run.return_value = agent_result
+    evaluator.evaluate.return_value = expected_report
+
+    runner = EvaluationRunner(
+        agent_adapter=agent_adapter,
+        evaluator=evaluator,
+        collector=collector,
+        report_writer=report_writer,
+    )
+
+    output_path = tmp_path / "reports" / "case_001.json"
+
+    report = runner.run(
+        testcase,
+        output_path=output_path,
+    )
+
+    assert report is expected_report
+
+    report_writer.write.assert_called_once_with(
+        expected_report,
+        output_path,
+    )
+
+
+def test_runner_raises_error_when_writer_not_configured(tmp_path):
+    testcase = make_testcase()
+
+    collector = TraceCollector()
+    agent_adapter = Mock()
+    evaluator = Mock()
+
+    agent_adapter.run.return_value = object()
+    evaluator.evaluate.return_value = object()
+
+    runner = EvaluationRunner(
+        agent_adapter=agent_adapter,
+        evaluator=evaluator,
+        collector=collector,
+    )
+
+    output_path = tmp_path / "case_001.json"
+
+    with pytest.raises(
+        ValueError,
+        match="report_writer is not configured",
+    ):
+        runner.run(
+            testcase,
+            output_path=output_path,
+        )
+
+def test_runner_generates_json_report_with_real_writer(tmp_path):
+    testcase = make_testcase()
+
+    collector = TraceCollector()
+    agent_adapter = Mock()
+    evaluator = Mock()
+
+    agent_adapter.run.return_value = object()
+
+    expected_report = EvaluationReport(
+        testcase_id="case_001",
+        results=(
+            MetricResult(
+                name="intent",
+                status=EvaluationStatus.PASS,
+                reason="意图符合预期",
+                expected="refund",
+                actual="refund",
+            ),
+            MetricResult(
+                name="business_state",
+                status=EvaluationStatus.PASS,
+                reason="订单退款成功",
+                expected="refunded",
+                actual="refunded",
+            ),
+        ),
+    )
+
+    evaluator.evaluate.return_value = expected_report
+
+    runner = EvaluationRunner(
+        agent_adapter=agent_adapter,
+        evaluator=evaluator,
+        collector=collector,
+        report_writer=JsonReportWriter(),
+    )
+
+    output_path = tmp_path / "reports" / "case_001.json"
+
+    report = runner.run(
+        testcase,
+        output_path=output_path,
+    )
+
+    # 验证 Runner 返回评测报告
+    assert report is expected_report
+
+    # 验证 JSON 文件真实生成
+    assert output_path.exists()
+
+    # 验证 JSON 文件内容
+    with output_path.open("r", encoding="utf-8") as file:
+        data = json.load(file)
+
+    assert data == expected_report.to_dict()
+    assert data["status"] == "PASS"

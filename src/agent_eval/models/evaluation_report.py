@@ -38,3 +38,19 @@ class EvaluationReport:
             return EvaluationStatus.BLOCKED
 
         return EvaluationStatus.PASS
+    
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "testcase_id": self.testcase_id,
+            "status": self.status.value,
+            "results": [
+                {
+                    "name": result.name,
+                    "status": result.status.value,
+                    "reason": result.reason,
+                    "expected": result.expected,
+                    "actual": result.actual,
+                }
+                for result in self.results
+            ],
+        }
